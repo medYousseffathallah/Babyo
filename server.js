@@ -39,6 +39,30 @@ const emotionSchema = new mongoose.Schema({
 
 const Emotion = mongoose.model('Emotion', emotionSchema);
 
+// Session Schema for tracking detection sessions
+const sessionSchema = new mongoose.Schema({
+  startTime: { type: Date, default: Date.now },
+  endTime: Date,
+  duration: Number, // in minutes
+  dominantEmotion: String,
+  emotionCounts: {
+    happy: { type: Number, default: 0 },
+    sad: { type: Number, default: 0 },
+    angry: { type: Number, default: 0 },
+    normal: { type: Number, default: 0 }
+  },
+  totalDetections: { type: Number, default: 0 },
+  avgConfidence: { type: Number, default: 0 },
+  notes: String,
+  detections: [{
+    emotion: String,
+    confidence: Number,
+    timestamp: Date
+  }]
+});
+
+const Session = mongoose.model('Session', sessionSchema);
+
 // Routes
 
 // Emotion detection endpoint
@@ -93,6 +117,94 @@ app.get('/api/advice/:emotion', (req, res) => {
   const advice = getAdviceForEmotion(emotion);
   res.json({ emotion, advice });
 });
+
+// Get all sessions
+app.get('/api/sessions', async (req, res) => {
+  try {
+    const sessions = await Session.find().sort({ startTime: -1 });
+    
+    // If no sessions exist, return mock data for demonstration
+    if (sessions.length === 0) {
+      const mockSessions = generateMockSessions();
+      res.json(mockSessions);
+    } else {
+      res.json(sessions);
+    }
+  } catch (error) {
+    console.error('Error fetching sessions:', error);
+    res.status(500).json({ error: 'Failed to fetch sessions' });
+  }
+});
+
+// Create a new session
+app.post('/api/sessions', async (req, res) => {
+  try {
+    const session = new Session(req.body);
+    await session.save();
+    res.status(201).json(session);
+  } catch (error) {
+    console.error('Error creating session:', error);
+    res.status(500).json({ error: 'Failed to create session' });
+  }
+});
+
+// Update a session
+app.put('/api/sessions/:id', async (req, res) => {
+  try {
+    const session = await Session.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+    res.json(session);
+  } catch (error) {
+    console.error('Error updating session:', error);
+    res.status(500).json({ error: 'Failed to update session' });
+  }
+});
+
+// Generate mock sessions for demonstration
+function generateMockSessions() {
+  const emotions = ['happy', 'sad', 'angry', 'normal'];
+  const sessions = [];
+  
+  for (let i = 0; i < 10; i++) {
+    const startTime = new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000);
+    const endTime = new Date(startTime.getTime() + Math.random() * 60 * 60 * 1000);
+    const dominantEmotion = emotions[Math.floor(Math.random() * emotions.length)];
+    
+    const emotionCounts = {};
+    emotions.forEach(emotion => {
+      emotionCounts[emotion] = Math.floor(Math.random() * 20);
+    });
+    emotionCounts[dominantEmotion] += 10;
+    
+    const detections = [];
+    Object.entries(emotionCounts).forEach(([emotion, count]) => {
+      for (let j = 0; j < count; j++) {
+        detections.push({
+          emotion,
+          confidence: 0.6 + Math.random() * 0.4,
+          timestamp: new Date(startTime.getTime() + Math.random() * (endTime - startTime))
+        });
+      }
+    });
+    
+    sessions.push({
+      id: `session_${i + 1}`,
+      startTime: startTime.toISOString(),
+      endTime: endTime.toISOString(),
+      duration: Math.floor((endTime - startTime) / 1000 / 60), // minutes
+      dominantEmotion,
+      emotionCounts,
+      totalDetections: Object.values(emotionCounts).reduce((a, b) => a + b, 0),
+      avgConfidence: 0.7 + Math.random() * 0.3,
+      notes: `Session ${i + 1} - ${dominantEmotion} dominant`,
+      detections: detections.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+    });
+  }
+  
+  return sessions.sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
+}
 
 // Function to get advice based on emotion
 function getAdviceForEmotion(emotion) {
