@@ -329,7 +329,7 @@ const UploadSessionPage = () => {
               
               <Grid container spacing={3}>
                 {results.map((result) => (
-                  <Grid item xs={12} md={6} key={result.id}>
+                  <Grid size={{ xs: 12, md: 6 }} key={result.id}>
                     <Paper elevation={1} sx={{ p: 3 }}>
                       <Typography variant="h6" gutterBottom>
                         {result.fileName}

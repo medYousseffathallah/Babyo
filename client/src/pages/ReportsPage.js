@@ -248,7 +248,7 @@ Generated on: ${new Date().toLocaleString()}
               Filters
             </Typography>
             <Grid container spacing={2}>
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <DatePicker
                   label="Filter by Date"
                   value={dateFilter}
@@ -256,7 +256,7 @@ Generated on: ${new Date().toLocaleString()}
                   renderInput={(params) => <TextField {...params} fullWidth />}
                 />
               </Grid>
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <FormControl fullWidth>
                   <InputLabel>Dominant Emotion</InputLabel>
                   <Select
@@ -272,7 +272,7 @@ Generated on: ${new Date().toLocaleString()}
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <Button
                   variant="outlined"
                   fullWidth
@@ -311,7 +311,7 @@ Generated on: ${new Date().toLocaleString()}
                     >
                       <AccordionSummary expandIcon={<ExpandMore />} component="div">
                         <Grid container alignItems="center" spacing={2}>
-                          <Grid item xs={12} sm={3}>
+                          <Grid size={{ xs: 12, sm: 3 }}>
                             <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
                               {new Date(session.startTime).toLocaleDateString()}
                             </Typography>
@@ -319,7 +319,7 @@ Generated on: ${new Date().toLocaleString()}
                               {new Date(session.startTime).toLocaleTimeString()} - {new Date(session.endTime).toLocaleTimeString()}
                             </Typography>
                           </Grid>
-                          <Grid item xs={12} sm={2}>
+                          <Grid size={{ xs: 12, sm: 2 }}>
                             <Typography variant="body2" color="text.secondary">
                               Duration
                             </Typography>
@@ -327,7 +327,7 @@ Generated on: ${new Date().toLocaleString()}
                               {formatDuration(session.duration)}
                             </Typography>
                           </Grid>
-                          <Grid item xs={12} sm={2}>
+                          <Grid size={{ xs: 12, sm: 2 }}>
                             <Typography variant="body2" color="text.secondary">
                               Dominant Emotion
                             </Typography>
@@ -337,7 +337,7 @@ Generated on: ${new Date().toLocaleString()}
                               size="small"
                             />
                           </Grid>
-                          <Grid item xs={12} sm={2}>
+                          <Grid size={{ xs: 12, sm: 2 }}>
                             <Typography variant="body2" color="text.secondary">
                               Detections
                             </Typography>
@@ -345,7 +345,7 @@ Generated on: ${new Date().toLocaleString()}
                               {session.totalDetections}
                             </Typography>
                           </Grid>
-                          <Grid item xs={12} sm={3}>
+                          <Grid size={{ xs: 12, sm: 3 }}>
                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                               <Box>
                                 <Typography variant="body2" color="text.secondary">
@@ -375,7 +375,7 @@ Generated on: ${new Date().toLocaleString()}
                       <AccordionDetails>
                         <Grid container spacing={3}>
                           {/* Emotion Breakdown */}
-                          <Grid item xs={12} md={6}>
+                          <Grid size={{ xs: 12, md: 6 }}>
                             <Typography variant="h6" gutterBottom>
                               Emotion Breakdown
                             </Typography>

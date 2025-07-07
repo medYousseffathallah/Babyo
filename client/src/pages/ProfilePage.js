@@ -256,7 +256,7 @@ const ProfilePage = () => {
 
         <Grid container spacing={3}>
           {/* User Profile */}
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Card elevation={3}>
               <CardContent>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
@@ -293,7 +293,7 @@ const ProfilePage = () => {
                 </Box>
                 
                 <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField
                       fullWidth
                       label="First Name"
@@ -303,7 +303,7 @@ const ProfilePage = () => {
                       margin="normal"
                     />
                   </Grid>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField
                       fullWidth
                       label="Last Name"
@@ -313,7 +313,7 @@ const ProfilePage = () => {
                       margin="normal"
                     />
                   </Grid>
-                  <Grid item xs={12}>
+                  <Grid size={{ xs: 12 }}>
                     <TextField
                       fullWidth
                       label="Email"
@@ -324,7 +324,7 @@ const ProfilePage = () => {
                       margin="normal"
                     />
                   </Grid>
-                  <Grid item xs={12}>
+                  <Grid size={{ xs: 12 }}>
                     <TextField
                       fullWidth
                       label="Phone"
@@ -359,7 +359,7 @@ const ProfilePage = () => {
           </Grid>
 
           {/* Baby Profiles */}
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Card elevation={3}>
               <CardContent>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
@@ -392,35 +392,35 @@ const ProfilePage = () => {
                     </Box>
                     
                     <Grid container spacing={1}>
-                      <Grid item xs={6}>
+                      <Grid size={{ xs: 6 }}>
                         <Typography variant="body2" color="text.secondary">
                           Age: {calculateAge(baby.birthDate)} months
                         </Typography>
                       </Grid>
-                      <Grid item xs={6}>
+                      <Grid size={{ xs: 6 }}>
                         <Typography variant="body2" color="text.secondary">
                           Gender: {baby.gender || 'Not specified'}
                         </Typography>
                       </Grid>
-                      <Grid item xs={6}>
+                      <Grid size={{ xs: 6 }}>
                         <Typography variant="body2" color="text.secondary">
                           Weight: {baby.weight || 'N/A'} lbs
                         </Typography>
                       </Grid>
-                      <Grid item xs={6}>
+                      <Grid size={{ xs: 6 }}>
                         <Typography variant="body2" color="text.secondary">
                           Height: {baby.height || 'N/A'} cm
                         </Typography>
                       </Grid>
                       {baby.allergies && (
-                        <Grid item xs={12}>
+                        <Grid size={{ xs: 12 }}>
                           <Typography variant="body2" color="text.secondary">
                             Allergies: {baby.allergies}
                           </Typography>
                         </Grid>
                       )}
                       {baby.notes && (
-                        <Grid item xs={12}>
+                        <Grid size={{ xs: 12 }}>
                           <Typography variant="body2" color="text.secondary">
                             Notes: {baby.notes}
                           </Typography>
@@ -434,7 +434,7 @@ const ProfilePage = () => {
           </Grid>
 
           {/* Settings */}
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             <Card elevation={3}>
               <CardContent>
                 <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
@@ -444,7 +444,7 @@ const ProfilePage = () => {
                 
                 <Grid container spacing={3}>
                   {/* Appearance */}
-                  <Grid item xs={12} md={6}>
+                  <Grid size={{ xs: 12, md: 6 }}>
                     <Paper elevation={1} sx={{ p: 2 }}>
                       <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
                         <Palette sx={{ mr: 1 }} />
@@ -489,7 +489,7 @@ const ProfilePage = () => {
                   </Grid>
                   
                   {/* Notifications */}
-                  <Grid item xs={12} md={6}>
+                  <Grid size={{ xs: 12, md: 6 }}>
                     <Paper elevation={1} sx={{ p: 2 }}>
                       <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
                         <Notifications sx={{ mr: 1 }} />
@@ -541,7 +541,7 @@ const ProfilePage = () => {
                   </Grid>
                   
                   {/* Privacy & Security */}
-                  <Grid item xs={12} md={6}>
+                  <Grid size={{ xs: 12, md: 6 }}>
                     <Paper elevation={1} sx={{ p: 2 }}>
                       <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
                         <Security sx={{ mr: 1 }} />

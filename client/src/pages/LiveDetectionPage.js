@@ -15,7 +15,6 @@ import {
   Stack
 } from '@mui/material';
 import {
-  CameraAlt,
   PlayArrow,
   Stop,
   Refresh,
@@ -33,9 +32,17 @@ const LiveDetectionPage = () => {
   const [emotionLog, setEmotionLog] = useState([]);
   const [capturedImage, setCapturedImage] = useState(null);
   const [showAdvice, setShowAdvice] = useState(false);
+  const [cameraError, setCameraError] = useState('');
+  const [cameraReady, setCameraReady] = useState(false);
   const webcamRef = useRef(null);
-  const navigate = useNavigate();
   const intervalRef = useRef(null);
+
+  // Camera constraints for better compatibility
+  const videoConstraints = {
+    width: 1280,
+    height: 720,
+    facingMode: "user"
+  };
 
   // Emotion emoji mapping
   const getEmotionEmoji = (emotionName) => {
@@ -70,15 +77,8 @@ const LiveDetectionPage = () => {
     return descriptions[emotionName?.toLowerCase()] || 'Monitoring your precious baby 👶';
   };
 
-  const capture = useCallback(async () => {
-    const imageSrc = webcamRef.current.getScreenshot();
-    if (imageSrc) {
-      setCapturedImage(imageSrc);
-      await analyzeEmotion(imageSrc);
-    }
-  }, [webcamRef]);
-
-  const analyzeEmotion = async (imageData) => {
+  // Analyze emotion function - defined early to avoid hoisting issues
+  const analyzeEmotion = useCallback(async (imageData) => {
     setLoading(true);
     setError('');
     
@@ -113,16 +113,83 @@ const LiveDetectionPage = () => {
     } finally {
       setLoading(false);
     }
+  }, [isLiveMode]);
+
+  // Camera event handlers
+  const handleUserMedia = () => {
+    setCameraReady(true);
+    setCameraError('');
+    console.log('Camera access granted');
   };
 
+  const handleUserMediaError = (error) => {
+    setCameraReady(false);
+    console.error('Camera access error:', error);
+    
+    let errorMessage = 'Camera access failed. ';
+    
+    if (error.name === 'NotAllowedError') {
+      errorMessage += 'Please allow camera permissions and refresh the page.';
+    } else if (error.name === 'NotFoundError') {
+      errorMessage += 'No camera found on this device.';
+    } else if (error.name === 'NotSupportedError') {
+      errorMessage += 'Camera not supported in this browser. Try Chrome or Firefox.';
+    } else if (error.name === 'NotReadableError') {
+      errorMessage += 'Camera is being used by another application.';
+    } else if (error.name === 'OverconstrainedError') {
+      errorMessage += 'Camera constraints not supported. Trying with basic settings.';
+    } else {
+      errorMessage += 'Please check your camera settings and try again.';
+    }
+    
+    // Add HTTPS requirement note for production
+    if (window.location.protocol === 'http:' && window.location.hostname !== 'localhost') {
+      errorMessage += ' Note: HTTPS is required for camera access in production.';
+    }
+    
+    setCameraError(errorMessage);
+  };
+
+  const capture = useCallback(async () => {
+    if (!cameraReady || !webcamRef.current) {
+      setError('Camera not ready. Please ensure camera access is granted.');
+      return;
+    }
+    
+    try {
+      const imageSrc = webcamRef.current.getScreenshot();
+      if (imageSrc) {
+        setCapturedImage(imageSrc);
+        await analyzeEmotion(imageSrc);
+      } else {
+        setError('Failed to capture image. Please try again.');
+      }
+    } catch (err) {
+      setError('Error capturing image: ' + err.message);
+    }
+  }, [webcamRef, cameraReady, analyzeEmotion]);
+
   const startLiveDetection = () => {
+    if (!cameraReady) {
+      setError('Camera not ready. Please ensure camera access is granted.');
+      return;
+    }
+    
     setIsLiveMode(true);
     setEmotionLog([]);
+    setError('');
+    
     intervalRef.current = setInterval(() => {
-      if (webcamRef.current) {
-        const imageSrc = webcamRef.current.getScreenshot();
-        if (imageSrc) {
-          analyzeEmotion(imageSrc);
+      if (webcamRef.current && cameraReady) {
+        try {
+          const imageSrc = webcamRef.current.getScreenshot();
+          if (imageSrc) {
+            analyzeEmotion(imageSrc);
+          }
+        } catch (err) {
+          console.error('Error during live detection:', err);
+          setError('Live detection error: ' + err.message);
+          stopLiveDetection();
         }
       }
     }, 3000);
@@ -209,7 +276,7 @@ const LiveDetectionPage = () => {
         zIndex: 0
       }}>💕</Box>
       
-      <style>
+      <style jsx="true">
         {`
           @keyframes float {
             0%, 100% { transform: translateY(0px) rotate(0deg); }
@@ -285,21 +352,45 @@ const LiveDetectionPage = () => {
         {/* Main Content */}
         <Grid container spacing={4}>
           {/* Main Detection Area */}
-          <Grid item xs={12} lg={8}>
+          <Grid size={{ xs: 12, lg: 8 }}>
             <Card elevation={3} sx={{
               background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(247,207,226,0.1) 100%)',
               backdropFilter: 'blur(10px)',
               border: '1px solid rgba(255,255,255,0.2)'
             }}>
               <CardContent sx={{ p: 4 }}>
-                <Typography variant="h5" gutterBottom sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center',
-                  fontWeight: 600,
-                  color: '#8AAAE5'
-                }}>
-                  📹 Baby Monitor Feed
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                  <Typography variant="h5" sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center',
+                    fontWeight: 600,
+                    color: '#8AAAE5'
+                  }}>
+                    📹 Baby Monitor Feed
+                  </Typography>
+                  
+                  {/* Camera Status Indicator */}
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{
+                      width: 12,
+                      height: 12,
+                      borderRadius: '50%',
+                      bgcolor: cameraReady ? '#4CAF50' : cameraError ? '#F44336' : '#FFC107',
+                      animation: cameraReady ? 'none' : 'pulse 2s infinite',
+                      '@keyframes pulse': {
+                        '0%': { opacity: 1 },
+                        '50%': { opacity: 0.5 },
+                        '100%': { opacity: 1 }
+                      }
+                    }} />
+                    <Typography variant="caption" sx={{ 
+                      color: cameraReady ? '#4CAF50' : cameraError ? '#F44336' : '#FFC107',
+                      fontWeight: 'bold'
+                    }}>
+                      {cameraReady ? 'Camera Ready' : cameraError ? 'Camera Error' : 'Connecting...'}
+                    </Typography>
+                  </Box>
+                </Box>
                 
                 {/* Camera Feed */}
                 <Box sx={{ position: 'relative', mb: 3 }}>
@@ -329,6 +420,9 @@ const LiveDetectionPage = () => {
                       audio={false}
                       ref={webcamRef}
                       screenshotFormat="image/jpeg"
+                      videoConstraints={videoConstraints}
+                      onUserMedia={handleUserMedia}
+                      onUserMediaError={handleUserMediaError}
                       style={{
                         width: '100%',
                         height: 'auto',
@@ -344,8 +438,9 @@ const LiveDetectionPage = () => {
                     variant="contained"
                     startIcon={<PhotoCamera />}
                     onClick={capture}
-                    disabled={loading || isLiveMode}
+                    disabled={loading || isLiveMode || !cameraReady}
                     size="large"
+                    title={!cameraReady ? 'Camera not ready' : 'Capture a photo for emotion analysis'}
                     sx={{
                       bgcolor: '#8AAAE5',
                       color: 'white',
@@ -374,8 +469,9 @@ const LiveDetectionPage = () => {
                       variant="contained"
                       startIcon={<PlayArrow />}
                       onClick={startLiveDetection}
-                      disabled={loading}
+                      disabled={loading || !cameraReady}
                       size="large"
+                      title={!cameraReady ? 'Camera not ready' : 'Start continuous emotion monitoring'}
                       sx={{
                         bgcolor: '#F7CFE2',
                         color: '#8B5A83',
@@ -458,9 +554,50 @@ const LiveDetectionPage = () => {
                   </Box>
                 )}
 
-                {/* Error Display */}
-                {error && (
+                {/* Camera Error Display */}
+                {cameraError && (
                   <Alert severity="error" sx={{ mb: 3 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                      📷 Camera Access Issue
+                    </Typography>
+                    {cameraError}
+                    
+                    {/* Camera Setup Guide */}
+                    <Box sx={{ mt: 2, p: 2, bgcolor: 'rgba(0,0,0,0.05)', borderRadius: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                        💡 Quick Setup Guide:
+                      </Typography>
+                      <Typography variant="body2" component="div">
+                        1. Click the camera icon in your browser's address bar<br/>
+                        2. Select "Allow" for camera permissions<br/>
+                        3. Refresh this page<br/>
+                        4. If using Chrome, ensure you're on HTTPS or localhost
+                      </Typography>
+                    </Box>
+                    
+                    <Box sx={{ mt: 2 }}>
+                      <Button 
+                        size="small" 
+                        variant="outlined" 
+                        onClick={() => window.location.reload()}
+                        sx={{ mr: 1 }}
+                      >
+                        🔄 Refresh Page
+                      </Button>
+                      <Button 
+                        size="small" 
+                        variant="text" 
+                        onClick={() => setCameraError('')}
+                      >
+                        Dismiss
+                      </Button>
+                    </Box>
+                  </Alert>
+                )}
+
+                {/* General Error Display */}
+                {error && (
+                  <Alert severity="warning" sx={{ mb: 3 }}>
                     {error}
                   </Alert>
                 )}
@@ -545,7 +682,7 @@ const LiveDetectionPage = () => {
           </Grid>
 
           {/* Sidebar */}
-          <Grid item xs={12} lg={4}>
+          <Grid size={{ xs: 12, lg: 4 }}>
             <Stack spacing={4}>
               {/* Advice Section */}
               {showAdvice && emotion && (

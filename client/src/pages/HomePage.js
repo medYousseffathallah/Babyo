@@ -262,7 +262,7 @@ const HomePage = () => {
       </Container>
 
       {/* Add CSS animations */}
-      <style jsx>{`
+      <style jsx="true">{`
         @keyframes float {
           0%, 100% { transform: translateY(0px); }
           50% { transform: translateY(-20px); }
@@ -287,7 +287,7 @@ const HomePage = () => {
         {/* Flow Timeline */}
         <Box sx={{ position: 'relative', mb: 6 }}>
           <Grid container spacing={4} alignItems="center">
-            <Grid item xs={12} md={4}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <Paper
                 elevation={6}
                 sx={{
@@ -326,7 +326,7 @@ const HomePage = () => {
             </Grid>
             
             {/* Flow Arrow 1 */}
-            <Grid item xs={12} md={1} sx={{ display: { xs: 'none', md: 'block' } }}>
+            <Grid size={{ xs: 12, md: 1 }} sx={{ display: { xs: 'none', md: 'block' } }}>
               <Box sx={{ textAlign: 'center' }}>
                 <ArrowForward sx={{ 
                   fontSize: 40, 
@@ -336,7 +336,7 @@ const HomePage = () => {
               </Box>
             </Grid>
             
-            <Grid item xs={12} md={3}>
+            <Grid size={{ xs: 12, md: 3 }}>
               <Paper
                 elevation={6}
                 sx={{
@@ -375,7 +375,7 @@ const HomePage = () => {
             </Grid>
             
             {/* Flow Arrow 2 */}
-            <Grid item xs={12} md={1} sx={{ display: { xs: 'none', md: 'block' } }}>
+            <Grid size={{ xs: 12, md: 1 }} sx={{ display: { xs: 'none', md: 'block' } }}>
               <Box sx={{ textAlign: 'center' }}>
                 <ArrowForward sx={{ 
                   fontSize: 40, 
@@ -385,7 +385,7 @@ const HomePage = () => {
               </Box>
             </Grid>
             
-            <Grid item xs={12} md={3}>
+            <Grid size={{ xs: 12, md: 3 }}>
               <Paper
                 elevation={6}
                 sx={{
@@ -427,7 +427,7 @@ const HomePage = () => {
       </Container>
       
       {/* Add pulse animation */}
-      <style jsx>{`
+      <style jsx="true">{`
         @keyframes pulse {
           0%, 100% { opacity: 0.6; transform: scale(1); }
           50% { opacity: 1; transform: scale(1.1); }
@@ -446,7 +446,7 @@ const HomePage = () => {
         </Typography>
         <Grid container spacing={4}>
           {features.map((feature, index) => (
-            <Grid item xs={12} sm={6} md={3} key={index}>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }} key={index}>
               <Card
                 sx={{
                   height: '100%',
@@ -553,7 +553,7 @@ const HomePage = () => {
         </Typography>
         <Grid container spacing={4}>
           {testimonials.map((testimonial, index) => (
-            <Grid item xs={12} md={4} key={index}>
+            <Grid size={{ xs: 12, md: 4 }} key={index}>
               <Card
                 sx={{
                   height: '100%',
