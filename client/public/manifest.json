@@ -1,6 +1,7 @@
 {
-  "short_name": "React App",
-  "name": "Create React App Sample",
+  "short_name": "Baby Monitor",
+  "name": "Baby Emotion Detection Monitor",
+  "description": "Real-time baby emotion detection and monitoring app",
   "icons": [
     {
       "src": "favicon.ico",
@@ -10,16 +11,23 @@
     {
       "src": "logo192.png",
       "type": "image/png",
-      "sizes": "192x192"
+      "sizes": "192x192",
+      "purpose": "any maskable"
     },
     {
       "src": "logo512.png",
       "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "512x512",
+      "purpose": "any maskable"
     }
   ],
-  "start_url": ".",
+  "start_url": "/",
   "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
+  "orientation": "portrait",
+  "theme_color": "#8AAAE5",
+  "background_color": "#FAFBFF",
+  "categories": ["health", "lifestyle", "parenting"],
+  "lang": "en",
+  "scope": "/",
+  "prefer_related_applications": false
 }

@@ -695,6 +695,26 @@ const HomePage = () => {
               >
                 🎬 Watch Demo
               </Button>
+              <Button
+                variant="text"
+                size="large"
+                onClick={() => navigate('/pwa-test')}
+                sx={{
+                  color: '#8AAAE5',
+                  px: 3,
+                  py: 2,
+                  fontSize: '1rem',
+                  fontWeight: 500,
+                  textDecoration: 'underline',
+                  '&:hover': {
+                    bgcolor: 'rgba(138, 170, 229, 0.1)',
+                    transform: 'translateY(-2px)'
+                  },
+                  transition: 'all 0.3s ease'
+                }}
+              >
+                📱 Test PWA Features
+              </Button>
             </Box>
             <Typography variant="body2" sx={{ mt: 3, color: 'text.secondary', fontStyle: 'italic' }}>
               ✨ Free to try • No credit card required • Privacy guaranteed

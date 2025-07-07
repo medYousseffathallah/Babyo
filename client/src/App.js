@@ -9,6 +9,9 @@ import UploadSessionPage from './pages/UploadSessionPage';
 import ReportsPage from './pages/ReportsPage';
 import AuthPage from './pages/AuthPage';
 import ProfilePage from './pages/ProfilePage';
+import PWATestPage from './pages/PWATestPage';
+import PWAInstallPrompt from './components/PWAInstallPrompt';
+import OfflineIndicator from './components/OfflineIndicator';
 import './App.css';
 
 const theme = createTheme({
@@ -154,7 +157,10 @@ function App() {
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/pwa-test" element={<PWATestPage />} />
         </Routes>
+        <PWAInstallPrompt />
+        <OfflineIndicator />
       </Router>
     </ThemeProvider>
   );
