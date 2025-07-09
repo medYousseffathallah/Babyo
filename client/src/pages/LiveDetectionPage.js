@@ -34,7 +34,9 @@ const LiveDetectionPage = () => {
   const [showAdvice, setShowAdvice] = useState(false);
   const [cameraError, setCameraError] = useState('');
   const [cameraReady, setCameraReady] = useState(false);
+  const [predictions, setPredictions] = useState([]);
   const webcamRef = useRef(null);
+  const canvasRef = useRef(null);
   const intervalRef = useRef(null);
 
   // Camera constraints for better compatibility
@@ -43,6 +45,79 @@ const LiveDetectionPage = () => {
     height: 720,
     facingMode: "user"
   };
+
+  // Draw bounding boxes on canvas overlay
+  const drawBoundingBoxes = useCallback((predictions, imageInfo) => {
+    console.log('drawBoundingBoxes called with:', { predictions, imageInfo });
+    
+    if (!canvasRef.current || !webcamRef.current || !predictions || predictions.length === 0) {
+      console.log('drawBoundingBoxes early return:', {
+        canvas: !!canvasRef.current,
+        webcam: !!webcamRef.current,
+        predictions: predictions,
+        predictionsLength: predictions?.length
+      });
+      return;
+    }
+
+    const canvas = canvasRef.current;
+    const video = webcamRef.current.video;
+    const ctx = canvas.getContext('2d');
+
+    if (!video) {
+      console.log('No video element found');
+      return;
+    }
+
+    console.log('Video dimensions:', { videoWidth: video.videoWidth, videoHeight: video.videoHeight });
+    
+    // Set canvas dimensions to match video
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    // Clear previous drawings
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Calculate scale factors
+    const scaleX = canvas.width / (imageInfo?.width || canvas.width);
+    const scaleY = canvas.height / (imageInfo?.height || canvas.height);
+
+    predictions.forEach((prediction, index) => {
+      console.log(`Drawing prediction ${index}:`, prediction);
+      const { x, y, width, height, class: className, confidence } = prediction;
+      
+      // Convert center coordinates to corner coordinates
+      const x1 = (x - width / 2) * scaleX;
+      const y1 = (y - height / 2) * scaleY;
+      const boxWidth = width * scaleX;
+      const boxHeight = height * scaleY;
+
+      console.log(`Bounding box ${index}:`, { x1, y1, boxWidth, boxHeight, scaleX, scaleY });
+
+      // Draw bounding box
+      ctx.strokeStyle = '#8AAAE5';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(x1, y1, boxWidth, boxHeight);
+
+      // Draw label background
+      const label = `${className} (${Math.round(confidence * 100)}%)`;
+      ctx.font = '16px Arial';
+      const textMetrics = ctx.measureText(label);
+      const textWidth = textMetrics.width;
+      const textHeight = 20;
+
+      ctx.fillStyle = 'rgba(138, 170, 229, 0.8)';
+      ctx.fillRect(x1, y1 - textHeight - 5, textWidth + 10, textHeight + 5);
+
+      // Draw label text
+      ctx.fillStyle = 'white';
+      ctx.fillText(label, x1 + 5, y1 - 8);
+      
+      console.log(`Drew bounding box for ${className} with confidence ${confidence}`);
+    });
+    
+    console.log('Finished drawing all bounding boxes');
+  }, []);
 
   // Emotion emoji mapping
   const getEmotionEmoji = (emotionName) => {
@@ -102,6 +177,20 @@ const LiveDetectionPage = () => {
       };
       
       setEmotion(newEmotion);
+      
+      // Store predictions for bounding box drawing
+      console.log('Roboflow result:', result.roboflowData);
+      if (result.roboflowData && result.roboflowData.predictions) {
+        console.log('Predictions found:', result.roboflowData.predictions);
+        setPredictions(result.roboflowData.predictions);
+        // Add a small delay to ensure canvas is ready
+        setTimeout(() => {
+          drawBoundingBoxes(result.roboflowData.predictions, result.roboflowData.image);
+        }, 100);
+      } else {
+        console.log('No predictions found in result');
+        setPredictions([]);
+      }
       
       if (isLiveMode) {
         setEmotionLog(prev => [...prev, newEmotion].slice(-20));
@@ -209,18 +298,48 @@ const LiveDetectionPage = () => {
     setCapturedImage(null);
     setError('');
     setShowAdvice(false);
+    setPredictions([]);
+    
+    // Clear canvas
+    if (canvasRef.current) {
+      const ctx = canvasRef.current.getContext('2d');
+      ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    }
+    
     if (isLiveMode) {
       stopLiveDetection();
     }
   };
 
+  // Handle canvas resizing and redrawing
   useEffect(() => {
+    const handleResize = () => {
+      if (predictions.length > 0 && webcamRef.current && canvasRef.current) {
+        // Redraw bounding boxes when window resizes
+        setTimeout(() => {
+          drawBoundingBoxes(predictions, { width: 1280, height: 720 });
+        }, 100);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    
     return () => {
+      window.removeEventListener('resize', handleResize);
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
     };
-  }, []);
+  }, [predictions, drawBoundingBoxes]);
+
+  // Redraw bounding boxes when predictions change
+  useEffect(() => {
+    if (predictions.length > 0) {
+      setTimeout(() => {
+        drawBoundingBoxes(predictions, { width: 1280, height: 720 });
+      }, 100);
+    }
+  }, [predictions, drawBoundingBoxes]);
 
   return (
     <Box sx={{ 
@@ -429,7 +548,50 @@ const LiveDetectionPage = () => {
                         display: 'block'
                       }}
                     />
+                    
+                    {/* Canvas overlay for bounding boxes */}
+                    <canvas
+                      ref={canvasRef}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        pointerEvents: 'none',
+                        zIndex: 1
+                      }}
+                    />
                   </Box>
+                  
+                  {/* Bounding Box Info */}
+                  {predictions.length > 0 && (
+                    <Box sx={{ 
+                      mt: 2, 
+                      p: 2, 
+                      bgcolor: 'rgba(138, 170, 229, 0.1)', 
+                      borderRadius: 2,
+                      border: '1px solid rgba(138, 170, 229, 0.3)'
+                    }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1, color: '#8AAAE5' }}>
+                        🎯 Detected Objects: {predictions.length}
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                        {predictions.map((pred, index) => (
+                          <Chip
+                            key={index}
+                            label={`${pred.class} (${Math.round(pred.confidence * 100)}%)`}
+                            size="small"
+                            sx={{
+                              bgcolor: 'rgba(138, 170, 229, 0.2)',
+                              color: '#8AAAE5',
+                              fontWeight: 'bold'
+                            }}
+                          />
+                        ))}
+                      </Box>
+                    </Box>
+                  )}
                 </Box>
 
                 {/* Control Buttons */}

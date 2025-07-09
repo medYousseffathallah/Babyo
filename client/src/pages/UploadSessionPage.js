@@ -21,6 +21,7 @@ import {
 import {
   CloudUpload,
   VideoFile,
+  Image,
   CheckCircle,
   Error,
   Psychology,
@@ -57,12 +58,13 @@ const UploadSessionPage = () => {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
-      'video/*': ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm']
+      'video/*': ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm'],
+      'image/*': ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
     },
     multiple: true
   });
 
-  const processVideo = async (fileItem) => {
+  const processFile = async (fileItem) => {
     try {
       setProcessing(true);
       setError(null);
@@ -73,7 +75,14 @@ const UploadSessionPage = () => {
       ));
 
       const formData = new FormData();
-      formData.append('video', fileItem.file);
+      const isVideo = fileItem.file.type.startsWith('video/');
+      const isImage = fileItem.file.type.startsWith('image/');
+      
+      if (isVideo) {
+        formData.append('video', fileItem.file);
+      } else if (isImage) {
+        formData.append('image', fileItem.file);
+      }
 
       // Simulate progress updates
       const progressInterval = setInterval(() => {
@@ -86,7 +95,8 @@ const UploadSessionPage = () => {
       }, 500);
 
       // Send to backend for processing
-      const response = await axios.post('http://localhost:5000/api/process-video', formData, {
+      const endpoint = isVideo ? '/api/process-video' : '/api/process-image';
+      const response = await axios.post(`http://localhost:5000${endpoint}`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -114,28 +124,29 @@ const UploadSessionPage = () => {
       setResults(prev => [...prev, {
         id: fileItem.id,
         fileName: fileItem.name,
+        fileType: isVideo ? 'video' : 'image',
         ...response.data
       }]);
 
     } catch (err) {
-      console.error('Error processing video:', err);
+      console.error('Error processing file:', err);
       setUploadedFiles(prev => prev.map(f => 
         f.id === fileItem.id ? {
           ...f,
           status: 'error',
-          error: 'Failed to process video'
+          error: 'Failed to process file'
         } : f
       ));
-      setError('Failed to process video. Please try again.');
+      setError('Failed to process file. Please try again.');
     } finally {
       setProcessing(false);
     }
   };
 
-  const processAllVideos = async () => {
+  const processAllFiles = async () => {
     const pendingFiles = uploadedFiles.filter(f => f.status === 'uploaded');
     for (const file of pendingFiles) {
-      await processVideo(file);
+      await processFile(file);
     }
   };
 
@@ -144,10 +155,10 @@ const UploadSessionPage = () => {
     setResults(prev => prev.filter(r => r.id !== fileId));
   };
 
-  const getStatusIcon = (status) => {
+  const getStatusIcon = (status, fileType) => {
     switch (status) {
       case 'uploaded':
-        return <VideoFile color="primary" />;
+        return fileType?.startsWith('video/') ? <VideoFile color="primary" /> : <Image color="primary" />;
       case 'processing':
         return <AccessTime color="warning" />;
       case 'completed':
@@ -155,7 +166,7 @@ const UploadSessionPage = () => {
       case 'error':
         return <Error color="error" />;
       default:
-        return <VideoFile />;
+        return fileType?.startsWith('video/') ? <VideoFile /> : <Image />;
     }
   };
 
@@ -191,7 +202,7 @@ const UploadSessionPage = () => {
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
           <Typography variant="h4" component="h1" sx={{ display: 'flex', alignItems: 'center' }}>
             <CloudUpload sx={{ mr: 2, color: 'primary.main' }} />
-            Upload Video Session
+            Upload Media Session
           </Typography>
         </Box>
         {error && (
@@ -205,7 +216,7 @@ const UploadSessionPage = () => {
           <CardContent>
             <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
               <CloudUpload sx={{ mr: 1, color: 'primary.main' }} />
-              Upload Video Files
+              Upload Video & Image Files
             </Typography>
             
             <Paper
@@ -227,13 +238,14 @@ const UploadSessionPage = () => {
               <input {...getInputProps()} />
               <CloudUpload sx={{ fontSize: 48, color: 'primary.main', mb: 2 }} />
               <Typography variant="h6" gutterBottom>
-                {isDragActive ? 'Drop the videos here...' : 'Drag & drop video files here'}
+                {isDragActive ? 'Drop the files here...' : 'Drag & drop video or image files here'}
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 or click to select files
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                Supported formats: MP4, AVI, MOV, WMV, FLV, WebM
+                Videos: MP4, AVI, MOV, WMV, FLV, WebM<br/>
+                Images: JPG, JPEG, PNG, GIF, BMP, WebP
               </Typography>
             </Paper>
 
@@ -245,11 +257,11 @@ const UploadSessionPage = () => {
                   </Typography>
                   <Button
                     variant="contained"
-                    onClick={processAllVideos}
+                    onClick={processAllFiles}
                     disabled={processing || uploadedFiles.every(f => f.status !== 'uploaded')}
                     startIcon={<Psychology />}
                   >
-                    Process All Videos
+                    Process All Files
                   </Button>
                 </Box>
                 
@@ -257,7 +269,7 @@ const UploadSessionPage = () => {
                   {uploadedFiles.map((file) => (
                     <ListItem key={file.id} sx={{ border: '1px solid #eee', borderRadius: 1, mb: 1 }}>
                       <ListItemIcon>
-                        {getStatusIcon(file.status)}
+                        {getStatusIcon(file.status, file.file.type)}
                       </ListItemIcon>
                       <ListItemText
                         primary={
@@ -295,7 +307,7 @@ const UploadSessionPage = () => {
                           <Button
                             size="small"
                             variant="outlined"
-                            onClick={() => processVideo(file)}
+                            onClick={() => processFile(file)}
                             disabled={processing}
                             startIcon={<Psychology />}
                           >
@@ -342,11 +354,18 @@ const UploadSessionPage = () => {
                           Processing Summary:
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          Duration: {result.duration || 'N/A'}
+                          File Type: {result.fileType === 'video' ? 'Video' : 'Image'}
                         </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          Frames Analyzed: {result.framesAnalyzed || 'N/A'}
-                        </Typography>
+                        {result.fileType === 'video' && (
+                          <>
+                            <Typography variant="body2" color="text.secondary">
+                              Duration: {result.duration || 'N/A'}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              Frames Analyzed: {result.framesAnalyzed || 'N/A'}
+                            </Typography>
+                          </>
+                        )}
                         <Typography variant="body2" color="text.secondary">
                           Processing Time: {result.processingTime || 'N/A'}
                         </Typography>
@@ -354,31 +373,42 @@ const UploadSessionPage = () => {
                       
                       <Box sx={{ mb: 2 }}>
                         <Typography variant="subtitle2" gutterBottom>
-                          Detected Emotions:
+                          {result.fileType === 'video' ? 'Detected Emotions:' : 'Detected Emotion:'}
                         </Typography>
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                          {result.emotions && result.emotions.map((emotion, index) => (
-                            <Chip
-                              key={index}
-                              label={`${emotion.emotion} (${Math.round(emotion.confidence * 100)}%)`}
-                              size="small"
-                              color="primary"
-                              variant="outlined"
-                            />
-                          )) || (
-                            <Typography variant="body2" color="text.secondary">
-                              No emotions detected
-                            </Typography>
+                          {result.fileType === 'video' ? (
+                            result.emotions && result.emotions.map((emotion, index) => (
+                              <Chip
+                                key={index}
+                                label={`${emotion.emotion} (${Math.round(emotion.confidence * 100)}%) at ${emotion.timestamp}`}
+                                size="small"
+                                color="primary"
+                                variant="outlined"
+                              />
+                            ))
+                          ) : (
+                            result.emotion ? (
+                              <Chip
+                                label={`${result.emotion} (${Math.round(result.confidence * 100)}%)`}
+                                size="small"
+                                color="primary"
+                                variant="outlined"
+                              />
+                            ) : (
+                              <Typography variant="body2" color="text.secondary">
+                                No emotion detected
+                              </Typography>
+                            )
                           )}
                         </Box>
                       </Box>
                       
                       <Box>
                         <Typography variant="subtitle2" gutterBottom>
-                          Dominant Emotion:
+                          {result.fileType === 'video' ? 'Dominant Emotion:' : 'Primary Emotion:'}
                         </Typography>
                         <Chip
-                          label={result.dominantEmotion || 'Unknown'}
+                          label={result.fileType === 'video' ? (result.dominantEmotion || 'Unknown') : (result.emotion || 'Unknown')}
                           color="secondary"
                         />
                       </Box>
@@ -398,11 +428,13 @@ const UploadSessionPage = () => {
             </Typography>
             <Typography variant="body2" component="div">
               <ul style={{ margin: 0, paddingLeft: '20px' }}>
-                <li>Upload video files of your baby (MP4, AVI, MOV, etc.)</li>
-                <li>Videos will be processed asynchronously using AI emotion detection</li>
-                <li>Processing time depends on video length and quality</li>
+                <li>Upload video or image files of your baby</li>
+                <li>Videos: MP4, AVI, MOV, WMV, FLV, WebM formats supported</li>
+                <li>Images: JPG, JPEG, PNG, GIF, BMP, WebP formats supported</li>
+                <li>Files will be processed using AI emotion detection</li>
+                <li>Processing time depends on file size and type</li>
                 <li>Results will show detected emotions with confidence scores</li>
-                <li>You can upload multiple videos and process them in batch</li>
+                <li>You can upload multiple files and process them in batch</li>
               </ul>
             </Typography>
           </CardContent>

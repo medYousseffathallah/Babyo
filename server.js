@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
 const multer = require('multer');
+const axios = require('axios');
 require('dotenv').config();
 
 const app = express();
@@ -34,7 +35,7 @@ const emotionSchema = new mongoose.Schema({
   emotion: String,
   confidence: Number,
   timestamp: { type: Date, default: Date.now },
-  advice: String
+  advice: mongoose.Schema.Types.Mixed
 });
 
 const Emotion = mongoose.model('Emotion', emotionSchema);
@@ -65,16 +66,59 @@ const Session = mongoose.model('Session', sessionSchema);
 
 // Routes
 
+// Helper function to map Roboflow classes to our emotion categories
+function mapRoboflowToEmotion(roboflowClass) {
+  const mapping = {
+    'happy': 'happy',
+    'sad': 'sad',
+    'angry': 'angry',
+    'neutral': 'normal',
+    'normal': 'normal'
+  };
+  return mapping[roboflowClass.toLowerCase()] || 'normal';
+}
+
 // Emotion detection endpoint
 app.post('/api/detect-emotion', upload.single('image'), async (req, res) => {
   try {
-    const { imageData } = req.body;
+    const { image } = req.body;
     
-    // Here you'll integrate with your AI model
-    // For now, we'll simulate the response
-    const mockEmotions = ['happy', 'sad', 'angry', 'normal'];
-    const detectedEmotion = mockEmotions[Math.floor(Math.random() * mockEmotions.length)];
-    const confidence = Math.random() * 0.4 + 0.6; // Random confidence between 0.6-1.0
+    if (!image) {
+      return res.status(400).json({ error: 'No image data provided' });
+    }
+    
+    // Convert base64 image to buffer for Roboflow API
+    const base64Data = image.replace(/^data:image\/[a-z]+;base64,/, '');
+    const imageBuffer = Buffer.from(base64Data, 'base64');
+    
+    // Prepare Roboflow API request
+    const roboflowUrl = `${process.env.ROBOFLOW_INFERENCE_URL}?api_key=${process.env.ROBOFLOW_API_KEY}`;
+    
+    // Make request to Roboflow API
+    const response = await axios({
+      method: 'POST',
+      url: roboflowUrl,
+      data: base64Data,
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    });
+    
+    const roboflowResult = response.data;
+    
+    // Process Roboflow response
+    let detectedEmotion = 'normal';
+    let confidence = 0.5;
+    
+    if (roboflowResult.predictions && roboflowResult.predictions.length > 0) {
+      // Get the prediction with highest confidence
+      const topPrediction = roboflowResult.predictions.reduce((prev, current) => 
+        (prev.confidence > current.confidence) ? prev : current
+      );
+      
+      detectedEmotion = mapRoboflowToEmotion(topPrediction.class);
+      confidence = topPrediction.confidence;
+    }
     
     // Get advice based on emotion
     const advice = getAdviceForEmotion(detectedEmotion);
@@ -92,11 +136,37 @@ app.post('/api/detect-emotion', upload.single('image'), async (req, res) => {
       emotion: detectedEmotion,
       confidence: confidence,
       advice: advice,
-      timestamp: emotionRecord.timestamp
+      timestamp: emotionRecord.timestamp,
+      roboflowData: roboflowResult // Include raw Roboflow data for debugging
     });
   } catch (error) {
     console.error('Error detecting emotion:', error);
-    res.status(500).json({ error: 'Failed to detect emotion' });
+    
+    // Fallback to mock detection if Roboflow fails
+    const mockEmotions = ['happy', 'sad', 'angry', 'normal'];
+    const detectedEmotion = mockEmotions[Math.floor(Math.random() * mockEmotions.length)];
+    const confidence = Math.random() * 0.4 + 0.6;
+    const advice = getAdviceForEmotion(detectedEmotion);
+    
+    try {
+      const emotionRecord = new Emotion({
+        emotion: detectedEmotion,
+        confidence: confidence,
+        advice: advice
+      });
+      await emotionRecord.save();
+      
+      res.json({
+        emotion: detectedEmotion,
+        confidence: confidence,
+        advice: advice,
+        timestamp: emotionRecord.timestamp,
+        fallback: true,
+        error: 'Roboflow API unavailable, using fallback detection'
+      });
+    } catch (dbError) {
+      res.status(500).json({ error: 'Failed to detect emotion and save to database' });
+    }
   }
 });
 
@@ -116,6 +186,136 @@ app.get('/api/advice/:emotion', (req, res) => {
   const { emotion } = req.params;
   const advice = getAdviceForEmotion(emotion);
   res.json({ emotion, advice });
+});
+
+// Process image endpoint
+app.post('/api/process-image', upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image file provided' });
+    }
+
+    // Convert buffer to base64
+    const base64Image = req.file.buffer.toString('base64');
+    
+    // Send to Roboflow API
+    const roboflowResponse = await axios({
+      method: 'POST',
+      url: process.env.ROBOFLOW_INFERENCE_URL,
+      params: {
+        api_key: process.env.ROBOFLOW_API_KEY
+      },
+      data: base64Image,
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    });
+
+    const predictions = roboflowResponse.data.predictions || [];
+    let emotion = 'normal';
+    let confidence = 0.5;
+
+    if (predictions.length > 0) {
+      const topPrediction = predictions.reduce((prev, current) => 
+        (prev.confidence > current.confidence) ? prev : current
+      );
+      emotion = mapRoboflowToEmotion(topPrediction.class);
+      confidence = topPrediction.confidence;
+    }
+
+    // Get advice for the detected emotion
+    const advice = getAdviceForEmotion(emotion);
+
+    // Save to database
+    const emotionRecord = new Emotion({
+      emotion,
+      confidence,
+      advice,
+      roboflowData: roboflowResponse.data
+    });
+    await emotionRecord.save();
+
+    res.json({
+      emotion,
+      confidence,
+      advice,
+      predictions,
+      processingTime: '< 1 second',
+      fileType: 'image'
+    });
+
+  } catch (error) {
+    console.error('Error processing image:', error);
+    res.status(500).json({ error: 'Failed to process image' });
+  }
+});
+
+// Process video endpoint (placeholder for future implementation)
+app.post('/api/process-video', upload.single('video'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No video file provided' });
+    }
+
+    // For now, return mock data for video processing
+    // In a real implementation, you would extract frames from the video
+    // and process each frame through the emotion detection API
+    
+    const mockEmotions = [
+      { emotion: 'happy', confidence: 0.8, timestamp: '00:00:05' },
+      { emotion: 'normal', confidence: 0.7, timestamp: '00:00:15' },
+      { emotion: 'sad', confidence: 0.6, timestamp: '00:00:25' }
+    ];
+    
+    const dominantEmotion = 'happy';
+    const advice = getAdviceForEmotion(dominantEmotion);
+    
+    // Save to database
+    const emotionRecord = new Emotion({
+      emotion: dominantEmotion,
+      confidence: 0.8,
+      advice
+    });
+    await emotionRecord.save();
+
+    res.json({
+      duration: '00:00:30',
+      framesAnalyzed: 30,
+      processingTime: '15 seconds',
+      emotions: mockEmotions,
+      dominantEmotion,
+      advice,
+      fileType: 'video'
+    });
+
+  } catch (error) {
+    console.error('Error processing video:', error);
+    res.status(500).json({ error: 'Failed to process video' });
+  }
+});
+
+// Test Roboflow connection endpoint
+app.get('/api/test-roboflow', async (req, res) => {
+  try {
+    const testUrl = `https://api.roboflow.com/?api_key=${process.env.ROBOFLOW_API_KEY}`;
+    const response = await axios.get(testUrl);
+    
+    res.json({
+      status: 'success',
+      message: 'Roboflow API connection successful',
+      workspace: response.data.workspace,
+      projectId: process.env.ROBOFLOW_PROJECT_ID,
+      modelVersion: process.env.ROBOFLOW_MODEL_VERSION,
+      inferenceUrl: process.env.ROBOFLOW_INFERENCE_URL
+    });
+  } catch (error) {
+    console.error('Roboflow connection test failed:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to connect to Roboflow API',
+      error: error.message
+    });
+  }
 });
 
 // Get all sessions
@@ -265,6 +465,8 @@ if (process.env.NODE_ENV === 'production') {
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  console.log('Bounding box feature enabled!');
+  console.log('Image and video upload support added!');
 });
 
 module.exports = app;

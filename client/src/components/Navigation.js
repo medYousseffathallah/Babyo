@@ -164,7 +164,7 @@ const Navigation = ({ isAuthenticated = false }) => {
             onClick={() => handleNavigation('/')}
           >
             <Avatar 
-              src="/baby-logo.png" 
+              src="/baby-logo.svg" 
               alt="Baby Emotion Detector" 
               sx={{ 
                 width: 40, 

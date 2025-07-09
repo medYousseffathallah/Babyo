@@ -26,6 +26,7 @@ import {
   CheckCircle as CheckIcon,
   Cancel as CancelIcon
 } from '@mui/icons-material';
+import RoboflowTest from '../components/RoboflowTest';
 import {
   isPWA,
   isOnline,
@@ -240,6 +241,21 @@ const PWATestPage = () => {
                   Notifications are blocked. Please enable them in your browser settings to receive baby monitoring alerts.
                 </Alert>
               )}
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Roboflow Integration Test */}
+        <Grid item xs={12}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Roboflow Integration Test
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Test the emotion detection model integration
+              </Typography>
+              <RoboflowTest />
             </CardContent>
           </Card>
         </Grid>

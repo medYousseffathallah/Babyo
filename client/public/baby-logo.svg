@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <defs>
+    <linearGradient id="babyGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFB6C1;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FFC0CB;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Baby face circle -->
+  <circle cx="96" cy="96" r="80" fill="url(#babyGradient)" stroke="#FF69B4" stroke-width="3"/>
+  
+  <!-- Eyes -->
+  <circle cx="76" cy="80" r="8" fill="#333"/>
+  <circle cx="116" cy="80" r="8" fill="#333"/>
+  <circle cx="78" cy="77" r="2" fill="white"/>
+  <circle cx="118" cy="77" r="2" fill="white"/>
+  
+  <!-- Nose -->
+  <ellipse cx="96" cy="95" rx="3" ry="2" fill="#FF69B4"/>
+  
+  <!-- Mouth (smile) -->
+  <path d="M 85 110 Q 96 120 107 110" stroke="#333" stroke-width="3" fill="none" stroke-linecap="round"/>
+  
+  <!-- Cheeks -->
+  <circle cx="65" cy="100" r="8" fill="#FFB6C1" opacity="0.7"/>
+  <circle cx="127" cy="100" r="8" fill="#FFB6C1" opacity="0.7"/>
+  
+  <!-- Hair tuft -->
+  <path d="M 96 20 Q 85 25 80 35 Q 90 30 96 32 Q 102 30 112 35 Q 107 25 96 20" fill="#8B4513"/>
+  
+  <!-- Emotion detection symbol -->
+  <g transform="translate(140, 40)">
+    <circle cx="0" cy="0" r="20" fill="#4CAF50" opacity="0.8"/>
+    <path d="M -8 -3 L -3 2 L 8 -8" stroke="white" stroke-width="3" fill="none" stroke-linecap="round"/>
+  </g>
+</svg>
