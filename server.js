@@ -73,7 +73,14 @@ function mapRoboflowToEmotion(roboflowClass) {
     'sad': 'sad',
     'angry': 'angry',
     'neutral': 'normal',
-    'normal': 'normal'
+    'normal': 'normal',
+    'crying': 'crying',
+    'sleepy': 'sleepy',
+    'sleeping': 'sleepy',
+    'content': 'content',
+    'surprised': 'surprised',
+    'fear': 'fear',
+    'disgust': 'disgust'
   };
   return mapping[roboflowClass.toLowerCase()] || 'normal';
 }
@@ -447,6 +454,76 @@ function getAdviceForEmotion(emotion) {
         "Practice tummy time if age-appropriate",
         "Engage in gentle conversation or singing",
         "This is a good time for feeding if it's time"
+      ]
+    },
+    crying: {
+      title: "Your baby is crying! 😭",
+      tips: [
+        "Check for basic needs: hunger, diaper, or tiredness",
+        "Try comforting with gentle rocking or holding",
+        "Use white noise or soft music to soothe",
+        "Ensure the room is comfortable",
+        "If crying persists, check for discomfort or illness"
+      ]
+    },
+    sleepy: {
+      title: "Your baby looks sleepy 😴",
+      tips: [
+        "Prepare for nap or bedtime",
+        "Create a dark, quiet environment",
+        "Follow your usual sleep routine",
+        "Avoid stimulating activities",
+        "Monitor for consistent sleep patterns"
+      ]
+    },
+    content: {
+      title: "Your baby is content 🥰",
+      tips: [
+        "Maintain the current activity",
+        "This is a good time for quiet bonding",
+        "Observe what makes them content",
+        "Gently introduce new stimuli",
+        "Enjoy these peaceful moments"
+      ]
+    },
+    surprised: {
+      title: "Your baby seems surprised 😲",
+      tips: [
+        "Check for sudden noises or changes",
+        "Reassure with gentle voice",
+        "This shows curiosity - encourage exploration",
+        "Avoid overwhelming stimuli",
+        "Document these cute expressions"
+      ]
+    },
+    fear: {
+      title: "Your baby appears fearful 😨",
+      tips: [
+        "Provide immediate comfort and security",
+        "Remove any scary stimuli",
+        "Hold them close and speak softly",
+        "Gradually introduce new things",
+        "Monitor for patterns in fears"
+      ]
+    },
+    disgust: {
+      title: "Your baby shows disgust 🤢",
+      tips: [
+        "Check for unpleasant smells or tastes",
+        "Clean up any messes promptly",
+        "Offer something pleasant instead",
+        "Note what triggers this response",
+        "Usually passes quickly"
+      ]
+    },
+    neutral: {
+      title: "Your baby is neutral 😐",
+      tips: [
+        "Engage with play or talking",
+        "This is normal - try stimulation",
+        "Observe for subtle cues",
+        "Good time for routine activities",
+        "Monitor energy levels"
       ]
     }
   };
