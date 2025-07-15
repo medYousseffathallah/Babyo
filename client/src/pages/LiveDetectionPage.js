@@ -48,15 +48,12 @@ const LiveDetectionPage = () => {
 
   // Draw bounding boxes on canvas overlay
   const drawBoundingBoxes = useCallback((predictions, imageInfo) => {
-    console.log('drawBoundingBoxes called with:', { predictions, imageInfo });
+    console.log('=== drawBoundingBoxes called ===');
+    console.log('Predictions:', predictions);
+    console.log('ImageInfo:', imageInfo);
     
     if (!canvasRef.current || !webcamRef.current || !predictions || predictions.length === 0) {
-      console.log('drawBoundingBoxes early return:', {
-        canvas: !!canvasRef.current,
-        webcam: !!webcamRef.current,
-        predictions: predictions,
-        predictionsLength: predictions?.length
-      });
+      console.log('Early return - missing requirements');
       return;
     }
 
@@ -64,40 +61,104 @@ const LiveDetectionPage = () => {
     const video = webcamRef.current.video;
     const ctx = canvas.getContext('2d');
 
-    if (!video) {
-      console.log('No video element found');
+    if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
+      console.log('Video not ready yet');
       return;
     }
 
-    console.log('Video dimensions:', { videoWidth: video.videoWidth, videoHeight: video.videoHeight });
+    // Wait for video to be fully loaded
+    if (video.readyState < 2) {
+      console.log('Video not loaded yet, retrying...');
+      setTimeout(() => drawBoundingBoxes(predictions, imageInfo), 100);
+      return;
+    }
+
+    // Get the actual displayed dimensions of the video element
+    const videoRect = video.getBoundingClientRect();
+    const displayWidth = Math.round(videoRect.width);
+    const displayHeight = Math.round(videoRect.height);
     
-    // Set canvas dimensions to match video
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    console.log('Video info:', {
+      videoWidth: video.videoWidth,
+      videoHeight: video.videoHeight,
+      displayWidth,
+      displayHeight,
+      readyState: video.readyState
+    });
+
+    // Only resize canvas if dimensions have changed
+    if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
+      canvas.width = displayWidth;
+      canvas.height = displayHeight;
+      console.log('Canvas resized to:', { width: displayWidth, height: displayHeight });
+    }
 
     // Clear previous drawings
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Calculate scale factors
-    const scaleX = canvas.width / (imageInfo?.width || canvas.width);
-    const scaleY = canvas.height / (imageInfo?.height || canvas.height);
+    // Use the original image dimensions from Roboflow
+    // Roboflow sends coordinates based on the original image size it processed
+    const originalWidth = imageInfo?.width || video.videoWidth;
+    const originalHeight = imageInfo?.height || video.videoHeight;
+    
+    console.log('Coordinate system info:', {
+      originalWidth,
+      originalHeight,
+      displayWidth,
+      displayHeight
+    });
 
     predictions.forEach((prediction, index) => {
-      console.log(`Drawing prediction ${index}:`, prediction);
+      console.log(`\n--- Processing prediction ${index} ---`);
+      console.log('Raw prediction:', prediction);
+      
       const { x, y, width, height, class: className, confidence } = prediction;
       
-      // Convert center coordinates to corner coordinates
-      const x1 = (x - width / 2) * scaleX;
-      const y1 = (y - height / 2) * scaleY;
-      const boxWidth = width * scaleX;
-      const boxHeight = height * scaleY;
+      // Roboflow typically returns coordinates in the original image pixel space
+      // We need to scale them to match the current display size
+      const scaleX = displayWidth / originalWidth;
+      const scaleY = displayHeight / originalHeight;
+      
+      console.log('Scale factors:', { scaleX, scaleY });
+      
+      // Scale the coordinates from original image space to display space
+      const scaledCenterX = x * scaleX;
+      const scaledCenterY = y * scaleY;
+      const scaledWidth = width * scaleX;
+      const scaledHeight = height * scaleY;
+      
+      // Convert from center coordinates to top-left corner coordinates
+      const x1 = scaledCenterX - scaledWidth / 2;
+      const y1 = scaledCenterY - scaledHeight / 2;
 
-      console.log(`Bounding box ${index}:`, { x1, y1, boxWidth, boxHeight, scaleX, scaleY });
+      console.log('Coordinate transformation:', {
+        original: { x, y, width, height },
+        scaled: { 
+          centerX: scaledCenterX, 
+          centerY: scaledCenterY, 
+          width: scaledWidth, 
+          height: scaledHeight 
+        },
+        final: { x1, y1, width: scaledWidth, height: scaledHeight }
+      });
+
+      // Ensure coordinates are within canvas bounds
+      const clampedX1 = Math.max(0, Math.min(x1, displayWidth - scaledWidth));
+      const clampedY1 = Math.max(0, Math.min(y1, displayHeight - scaledHeight));
+      const clampedWidth = Math.min(scaledWidth, displayWidth - clampedX1);
+      const clampedHeight = Math.min(scaledHeight, displayHeight - clampedY1);
+
+      console.log('Clamped coordinates:', {
+        x1: clampedX1,
+        y1: clampedY1,
+        width: clampedWidth,
+        height: clampedHeight
+      });
 
       // Draw bounding box
       ctx.strokeStyle = '#8AAAE5';
       ctx.lineWidth = 3;
-      ctx.strokeRect(x1, y1, boxWidth, boxHeight);
+      ctx.strokeRect(clampedX1, clampedY1, clampedWidth, clampedHeight);
 
       // Draw label background
       const label = `${className} (${Math.round(confidence * 100)}%)`;
@@ -106,17 +167,19 @@ const LiveDetectionPage = () => {
       const textWidth = textMetrics.width;
       const textHeight = 20;
 
+      const labelY = clampedY1 > textHeight + 5 ? clampedY1 - textHeight - 5 : clampedY1 + clampedHeight + 5;
+
       ctx.fillStyle = 'rgba(138, 170, 229, 0.8)';
-      ctx.fillRect(x1, y1 - textHeight - 5, textWidth + 10, textHeight + 5);
+      ctx.fillRect(clampedX1, labelY, textWidth + 10, textHeight + 5);
 
       // Draw label text
       ctx.fillStyle = 'white';
-      ctx.fillText(label, x1 + 5, y1 - 8);
+      ctx.fillText(label, clampedX1 + 5, labelY + textHeight - 2);
       
-      console.log(`Drew bounding box for ${className} with confidence ${confidence}`);
+      console.log(`✓ Drew bounding box for ${className} (${Math.round(confidence * 100)}%)`);
     });
     
-    console.log('Finished drawing all bounding boxes');
+    console.log('=== Finished drawing all bounding boxes ===\n');
   }, []);
 
   // Emotion emoji mapping
@@ -179,17 +242,40 @@ const LiveDetectionPage = () => {
       setEmotion(newEmotion);
       
       // Store predictions for bounding box drawing
-      console.log('Roboflow result:', result.roboflowData);
+      console.log('Full Roboflow result:', result.roboflowData);
       if (result.roboflowData && result.roboflowData.predictions) {
-        console.log('Predictions found:', result.roboflowData.predictions);
+        console.log('Raw predictions from Roboflow:', result.roboflowData.predictions);
+        console.log('Image info from Roboflow:', {
+          width: result.roboflowData.image?.width,
+          height: result.roboflowData.image?.height
+        });
+        
+        // Store the image info for redrawing
+        const imageInfo = result.roboflowData.image;
+        setLastImageInfo(imageInfo);
+        
+        // Log each prediction in detail
+        result.roboflowData.predictions.forEach((pred, index) => {
+          console.log(`Prediction ${index}:`, {
+            class: pred.class,
+            confidence: pred.confidence,
+            x: pred.x,
+            y: pred.y,
+            width: pred.width,
+            height: pred.height,
+            coordinates_type: 'Roboflow typically uses center coordinates'
+          });
+        });
+        
         setPredictions(result.roboflowData.predictions);
         // Add a small delay to ensure canvas is ready
         setTimeout(() => {
-          drawBoundingBoxes(result.roboflowData.predictions, result.roboflowData.image);
+          drawBoundingBoxes(result.roboflowData.predictions, imageInfo);
         }, 100);
       } else {
         console.log('No predictions found in result');
         setPredictions([]);
+        setLastImageInfo(null);
       }
       
       if (isLiveMode) {
@@ -299,6 +385,7 @@ const LiveDetectionPage = () => {
     setError('');
     setShowAdvice(false);
     setPredictions([]);
+    setLastImageInfo(null);
     
     // Clear canvas
     if (canvasRef.current) {
@@ -311,35 +398,54 @@ const LiveDetectionPage = () => {
     }
   };
 
+  // Store the last image info for redrawing
+  const [lastImageInfo, setLastImageInfo] = useState(null);
+
   // Handle canvas resizing and redrawing
   useEffect(() => {
     const handleResize = () => {
-      if (predictions.length > 0 && webcamRef.current && canvasRef.current) {
+      if (predictions.length > 0 && webcamRef.current && canvasRef.current && lastImageInfo) {
         // Redraw bounding boxes when window resizes
         setTimeout(() => {
-          drawBoundingBoxes(predictions, { width: 1280, height: 720 });
+          drawBoundingBoxes(predictions, lastImageInfo);
         }, 100);
       }
     };
+
+    // Create a ResizeObserver to watch for video element size changes
+    let resizeObserver;
+    if (webcamRef.current?.video) {
+      resizeObserver = new ResizeObserver(() => {
+        if (predictions.length > 0 && lastImageInfo) {
+          setTimeout(() => {
+            drawBoundingBoxes(predictions, lastImageInfo);
+          }, 100);
+        }
+      });
+      resizeObserver.observe(webcamRef.current.video);
+    }
 
     window.addEventListener('resize', handleResize);
     
     return () => {
       window.removeEventListener('resize', handleResize);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
     };
-  }, [predictions, drawBoundingBoxes]);
+  }, [predictions, drawBoundingBoxes, lastImageInfo]);
 
   // Redraw bounding boxes when predictions change
   useEffect(() => {
-    if (predictions.length > 0) {
+    if (predictions.length > 0 && lastImageInfo) {
       setTimeout(() => {
-        drawBoundingBoxes(predictions, { width: 1280, height: 720 });
+        drawBoundingBoxes(predictions, lastImageInfo);
       }, 100);
     }
-  }, [predictions, drawBoundingBoxes]);
+  }, [predictions, drawBoundingBoxes, lastImageInfo]);
 
   return (
     <Box sx={{ 
