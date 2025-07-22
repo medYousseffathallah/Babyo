@@ -48,8 +48,8 @@ const sessionSchema = new mongoose.Schema({
   dominantEmotion: String,
   emotionCounts: {
     happy: { type: Number, default: 0 },
-    sad: { type: Number, default: 0 },
-    angry: { type: Number, default: 0 },
+    sleeping: { type: Number, default: 0 },
+    crying: { type: Number, default: 0 },
     normal: { type: Number, default: 0 }
   },
   totalDetections: { type: Number, default: 0 },
@@ -75,6 +75,7 @@ function mapRoboflowToEmotion(roboflowClass) {
     'neutral': 'normal',
     'normal': 'normal',
     'crying': 'crying',
+    'cry': 'crying',
     'sleepy': 'sleepy',
     'sleeping': 'sleepy',
     'content': 'content',
@@ -85,6 +86,43 @@ function mapRoboflowToEmotion(roboflowClass) {
   return mapping[roboflowClass.toLowerCase()] || 'normal';
 }
 
+// Proxy endpoint for the Python tracking service
+app.post('/api/track', async (req, res) => {
+  try {
+    // Forward the request to the Python tracking service
+    const response = await axios({
+      method: 'POST',
+      url: 'http://localhost:5001/api/track',
+      data: req.body,
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    // Return the tracking service response
+    res.json(response.data);
+  } catch (error) {
+    console.error('Error proxying to tracking service:', error.message);
+    
+    // If the tracking service is unavailable, return the original predictions
+    // This allows the frontend to continue working even if the tracking service is down
+    if (req.body.predictions) {
+      res.json({
+        tracked: false,
+        predictions: req.body.predictions,
+        error: 'Tracking service unavailable',
+        fallback: true
+      });
+    } else {
+      res.status(500).json({
+        error: 'Tracking service unavailable and no predictions provided',
+        tracked: false,
+        predictions: []
+      });
+    }
+  }
+});
+
 // Emotion detection endpoint
 app.post('/api/detect-emotion', upload.single('image'), async (req, res) => {
   try {
@@ -94,63 +132,87 @@ app.post('/api/detect-emotion', upload.single('image'), async (req, res) => {
       return res.status(400).json({ error: 'No image data provided' });
     }
     
-    // Convert base64 image to buffer for Roboflow API
+    // Convert base64 image to buffer for API
     const base64Data = image.replace(/^data:image\/[a-z]+;base64,/, '');
-    const imageBuffer = Buffer.from(base64Data, 'base64');
     
-    // Prepare Roboflow API request
-    const roboflowUrl = `${process.env.ROBOFLOW_INFERENCE_URL}?api_key=${process.env.ROBOFLOW_API_KEY}`;
-    
-    // Make request to Roboflow API
+    // Call local App.py endpoint
+    const localUrl = 'http://localhost:5002/detect_emotion';
     const response = await axios({
       method: 'POST',
-      url: roboflowUrl,
-      data: base64Data,
+      url: localUrl,
+      data: { image: base64Data },
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
+        'Content-Type': 'application/json'
       }
     });
     
     const roboflowResult = response.data;
     
-    // Process Roboflow response
-    let detectedEmotion = 'normal';
-    let confidence = 0.5;
+    // Process response
+    let detectedEmotion = 'none';
+    let confidence = 0;
+    const CONFIDENCE_THRESHOLD = 0.1;
     
     if (roboflowResult.predictions && roboflowResult.predictions.length > 0) {
+      console.log('All predictions:', roboflowResult.predictions.map(p => ({class: p.class, confidence: p.confidence})));
       // Get the prediction with highest confidence
       const topPrediction = roboflowResult.predictions.reduce((prev, current) => 
         (prev.confidence > current.confidence) ? prev : current
       );
-      
-      detectedEmotion = mapRoboflowToEmotion(topPrediction.class);
-      confidence = topPrediction.confidence;
+      if (topPrediction.confidence >= CONFIDENCE_THRESHOLD) {
+        // Check for 'crying' first, but only if above threshold
+        const cryingPrediction = roboflowResult.predictions.find(pred => 
+          pred.class.toLowerCase() === 'crying' || pred.class.toLowerCase() === 'cry'
+        );
+        if (cryingPrediction && cryingPrediction.confidence >= CONFIDENCE_THRESHOLD) {
+          detectedEmotion = 'crying';
+          confidence = cryingPrediction.confidence;
+          console.log('Crying detected, setting emotion to crying with confidence:', confidence);
+        } else {
+          detectedEmotion = mapRoboflowToEmotion(topPrediction.class);
+          confidence = topPrediction.confidence;
+          console.log('No crying detected, selected:', detectedEmotion, 'with confidence:', confidence);
+        }
+        // Filter predictions to only include those above threshold
+        roboflowResult.predictions = roboflowResult.predictions.filter(p => p.confidence >= CONFIDENCE_THRESHOLD);
+      } else {
+        console.log('All predictions below threshold');
+        roboflowResult.predictions = [];
+      }
+    } else {
+      console.log('No predictions from local model');
+      roboflowResult.predictions = [];
     }
     
-    // Get advice based on emotion
-    const advice = getAdviceForEmotion(detectedEmotion);
+    // Get advice based on emotion only if detected
+    let advice = {};
+    if (detectedEmotion !== 'none') {
+      advice = getAdviceForEmotion(detectedEmotion);
+    }
     
-    // Save to database
-    const emotionRecord = new Emotion({
-      emotion: detectedEmotion,
-      confidence: confidence,
-      advice: advice
-    });
-    
-    await emotionRecord.save();
+    // Save to database only if detected
+    let emotionRecord;
+    if (detectedEmotion !== 'none') {
+      emotionRecord = new Emotion({
+        emotion: detectedEmotion,
+        confidence: confidence,
+        advice: advice
+      });
+      await emotionRecord.save();
+    }
     
     res.json({
       emotion: detectedEmotion,
       confidence: confidence,
       advice: advice,
-      timestamp: emotionRecord.timestamp,
-      roboflowData: roboflowResult // Include raw Roboflow data for debugging
+      timestamp: detectedEmotion !== 'none' ? emotionRecord.timestamp : new Date(),
+      roboflowData: roboflowResult // Include raw data for debugging
     });
   } catch (error) {
     console.error('Error detecting emotion:', error);
     
-    // Fallback to mock detection if Roboflow fails
-    const mockEmotions = ['happy', 'sad', 'angry', 'normal'];
+    // Fallback to mock detection if local model fails
+    const mockEmotions = ['happy', 'sad', 'sleeping', 'normal'];
     const detectedEmotion = mockEmotions[Math.floor(Math.random() * mockEmotions.length)];
     const confidence = Math.random() * 0.4 + 0.6;
     const advice = getAdviceForEmotion(detectedEmotion);
@@ -169,7 +231,7 @@ app.post('/api/detect-emotion', upload.single('image'), async (req, res) => {
         advice: advice,
         timestamp: emotionRecord.timestamp,
         fallback: true,
-        error: 'Roboflow API unavailable, using fallback detection'
+        error: 'Local model unavailable, using fallback detection'
       });
     } catch (dbError) {
       res.status(500).json({ error: 'Failed to detect emotion and save to database' });
@@ -205,20 +267,18 @@ app.post('/api/process-image', upload.single('image'), async (req, res) => {
     // Convert buffer to base64
     const base64Image = req.file.buffer.toString('base64');
     
-    // Send to Roboflow API
-    const roboflowResponse = await axios({
+    // Call local App.py endpoint
+    const localUrl = 'http://localhost:5002/detect_emotion';
+    const response = await axios({
       method: 'POST',
-      url: process.env.ROBOFLOW_INFERENCE_URL,
-      params: {
-        api_key: process.env.ROBOFLOW_API_KEY
-      },
-      data: base64Image,
+      url: localUrl,
+      data: { image: base64Image },
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
+        'Content-Type': 'application/json'
       }
     });
 
-    const predictions = roboflowResponse.data.predictions || [];
+    const predictions = response.data.predictions || [];
     let emotion = 'normal';
     let confidence = 0.5;
 
@@ -238,7 +298,7 @@ app.post('/api/process-image', upload.single('image'), async (req, res) => {
       emotion,
       confidence,
       advice,
-      roboflowData: roboflowResponse.data
+      roboflowData: response.data
     });
     await emotionRecord.save();
 
@@ -274,7 +334,7 @@ app.post('/api/process-video', upload.single('video'), async (req, res) => {
       { emotion: 'sad', confidence: 0.6, timestamp: '00:00:25' }
     ];
     
-    const dominantEmotion = 'happy';
+    const dominantEmotion = 'crying';
     const advice = getAdviceForEmotion(dominantEmotion);
     
     // Save to database
@@ -371,7 +431,7 @@ app.put('/api/sessions/:id', async (req, res) => {
 
 // Generate mock sessions for demonstration
 function generateMockSessions() {
-  const emotions = ['happy', 'sad', 'angry', 'normal'];
+  const emotions = ['happy', 'cry', 'sleepy', 'normal'];
   const sessions = [];
   
   for (let i = 0; i < 10; i++) {

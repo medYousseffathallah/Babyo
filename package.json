@@ -12,18 +12,25 @@
     "install-client": "cd client && npm install"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "mongoose": "^7.5.0",
+    "axios": "^1.5.0",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
-    "multer": "^1.4.5-lts.1",
-    "axios": "^1.5.0"
+    "express": "^4.18.2",
+    "mongoose": "^7.5.0",
+    "multer": "^1.4.5-lts.1"
   },
   "devDependencies": {
+    "concurrently": "^8.2.0",
     "nodemon": "^3.0.1",
-    "concurrently": "^8.2.0"
+    "react-app-rewired": "^2.2.1"
   },
-  "keywords": ["baby", "emotion", "detection", "mern", "ai"],
+  "keywords": [
+    "baby",
+    "emotion",
+    "detection",
+    "mern",
+    "ai"
+  ],
   "author": "Your Name",
   "license": "MIT"
 }

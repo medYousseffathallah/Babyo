@@ -1,5 +1,4 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import Webcam from 'react-webcam';
 import {
   Box,
   Container,
@@ -21,14 +20,22 @@ import {
   PhotoCamera
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
+import Webcam from 'react-webcam';
 import Navigation from '../components/Navigation';
 import AdvicePage from './AdvicePage';
+import ObjectTracker from '../objectTracker';
+
 
 const LiveDetectionPage = () => {
+  const [isLiveMode, setIsLiveMode] = useState(false);
+  
+  // Initialize object tracker
+  const trackerRef = useRef(new ObjectTracker());
+
+
   const [emotion, setEmotion] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [isLiveMode, setIsLiveMode] = useState(false);
   const [emotionLog, setEmotionLog] = useState([]);
   const [capturedImage, setCapturedImage] = useState(null);
   const [showAdvice, setShowAdvice] = useState(false);
@@ -38,6 +45,9 @@ const LiveDetectionPage = () => {
   const webcamRef = useRef(null);
   const canvasRef = useRef(null);
   const intervalRef = useRef(null);
+  
+
+  
 
   // Camera constraints for better compatibility
   const videoConstraints = {
@@ -52,14 +62,22 @@ const LiveDetectionPage = () => {
     console.log('Predictions:', predictions);
     console.log('ImageInfo:', imageInfo);
     
-    if (!canvasRef.current || !webcamRef.current || !predictions || predictions.length === 0) {
-      console.log('Early return - missing requirements');
+    if (!canvasRef.current || !webcamRef.current) {
+      console.log('Early return - missing canvas or webcam');
       return;
     }
 
     const canvas = canvasRef.current;
     const video = webcamRef.current.video;
     const ctx = canvas.getContext('2d');
+
+    // Always clear the canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (!predictions || predictions.length === 0) {
+      console.log('No predictions - canvas cleared');
+      return;
+    }
 
     if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
       console.log('Video not ready yet');
@@ -86,15 +104,13 @@ const LiveDetectionPage = () => {
       readyState: video.readyState
     });
 
-    // Only resize canvas if dimensions have changed
-    if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
-      canvas.width = displayWidth;
-      canvas.height = displayHeight;
-      console.log('Canvas resized to:', { width: displayWidth, height: displayHeight });
-    }
+  // Always ensure canvas matches the current video display size
+  canvas.width = displayWidth;
+  canvas.height = displayHeight;
+  console.log('Canvas dimensions set to:', { width: displayWidth, height: displayHeight });
 
-    // Clear previous drawings
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // Clear again after resize
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Use the original image dimensions from Roboflow
     // Roboflow sends coordinates based on the original image size it processed
@@ -114,25 +130,59 @@ const LiveDetectionPage = () => {
       
       const { x, y, width, height, class: className, confidence } = prediction;
       
-      // Roboflow typically returns coordinates in the original image pixel space
-      // We need to scale them to match the current display size
-      const scaleX = displayWidth / originalWidth;
-      const scaleY = displayHeight / originalHeight;
+      // Skip low confidence predictions
+      if (confidence < 0.6) return;
+      
+      let pixelX = x;
+      let pixelY = y;
+      let pixelWidth = width;
+      let pixelHeight = height;
+      
+      // Check if coordinates are normalized (0-1 range)
+      if (x <= 1 && y <= 1 && width <= 1 && height <= 1) {
+        // Convert normalized to pixels
+        pixelX = x * originalWidth;
+        pixelY = y * originalHeight;
+        pixelWidth = width * originalWidth;
+        pixelHeight = height * originalHeight;
+      } else {
+        // Already in pixel coordinates (from tracker)
+        console.log('Using pixel coordinates directly');
+      }
+      
+      // Calculate scaling factors preserving aspect ratio
+      const aspectRatioOriginal = originalWidth / originalHeight;
+      const aspectRatioDisplay = displayWidth / displayHeight;
+      let effectiveWidth = displayWidth;
+      let effectiveHeight = displayHeight;
+      let offsetX = 0;
+      let offsetY = 0;
+      if (aspectRatioDisplay > aspectRatioOriginal) {
+        // Letterboxed horizontally
+        effectiveWidth = displayHeight * aspectRatioOriginal;
+        offsetX = (displayWidth - effectiveWidth) / 2;
+      } else if (aspectRatioDisplay < aspectRatioOriginal) {
+        // Letterboxed vertically
+        effectiveHeight = displayWidth / aspectRatioOriginal;
+        offsetY = (displayHeight - effectiveHeight) / 2;
+      }
+      const scaleX = effectiveWidth / originalWidth;
+      const scaleY = effectiveHeight / originalHeight;
       
       console.log('Scale factors:', { scaleX, scaleY });
       
-      // Scale the coordinates from original image space to display space
-      const scaledCenterX = x * scaleX;
-      const scaledCenterY = y * scaleY;
-      const scaledWidth = width * scaleX;
-      const scaledHeight = height * scaleY;
+      // Scale the pixel coordinates to display space
+      const scaledCenterX = pixelX * scaleX;
+      const scaledCenterY = pixelY * scaleY;
+      const scaledWidth = pixelWidth * scaleX;
+      const scaledHeight = pixelHeight * scaleY;
       
       // Convert from center coordinates to top-left corner coordinates
-      const x1 = scaledCenterX - scaledWidth / 2;
-      const y1 = scaledCenterY - scaledHeight / 2;
+      const x1 = offsetX + scaledCenterX - scaledWidth / 2;
+      const y1 = offsetY + scaledCenterY - scaledHeight / 2;
 
       console.log('Coordinate transformation:', {
-        original: { x, y, width, height },
+        original: { x: pixelX, y: pixelY, width: pixelWidth, height: pixelHeight },
         scaled: { 
           centerX: scaledCenterX, 
           centerY: scaledCenterY, 
@@ -155,13 +205,29 @@ const LiveDetectionPage = () => {
         height: clampedHeight
       });
 
-      // Draw bounding box
-      ctx.strokeStyle = '#8AAAE5';
+      // Draw bounding box with different style based on tracking status
+      const isTracked = prediction.missingFrames !== undefined;
+      const missingFrames = prediction.missingFrames || 0;
+      
+      // Use different colors for detected vs tracked objects
+      if (isTracked && missingFrames > 0) {
+        // Object is being tracked but not directly detected
+        // Fade the color based on how long it's been missing
+        const opacity = Math.max(0.3, 1 - (missingFrames / 15));
+        ctx.strokeStyle = `rgba(255, 165, 0, ${opacity})`; // Orange with fading opacity
+      } else {
+        // Object is directly detected
+        ctx.strokeStyle = '#8AAAE5'; // Original blue color
+      }
+      
       ctx.lineWidth = 3;
       ctx.strokeRect(clampedX1, clampedY1, clampedWidth, clampedHeight);
 
       // Draw label background
-      const label = `${className} (${Math.round(confidence * 100)}%)`;
+      let label = `${className} (${Math.round(confidence * 100)}%)`;
+      if (isTracked && prediction.id) {
+        label += ` #${prediction.id}`; // Add tracking ID to label
+      }
       ctx.font = '16px Arial';
       const textMetrics = ctx.measureText(label);
       const textWidth = textMetrics.width;
@@ -217,10 +283,12 @@ const LiveDetectionPage = () => {
 
   // Analyze emotion function - defined early to avoid hoisting issues
   const analyzeEmotion = useCallback(async (imageData) => {
+    console.log('Analyzing new frame');
     setLoading(true);
     setError('');
     
     try {
+      // Get emotion detection from the server
       const response = await fetch('http://localhost:5000/api/detect-emotion', {
         method: 'POST',
         headers: {
@@ -234,6 +302,7 @@ const LiveDetectionPage = () => {
       }
       
       const result = await response.json();
+      console.log('Full API response:', result);
       const newEmotion = {
         ...result,
         timestamp: new Date().toISOString()
@@ -242,19 +311,20 @@ const LiveDetectionPage = () => {
       setEmotion(newEmotion);
       
       // Store predictions for bounding box drawing
-      console.log('Full Roboflow result:', result.roboflowData);
-      if (result.roboflowData && result.roboflowData.predictions) {
-        console.log('Raw predictions from Roboflow:', result.roboflowData.predictions);
-        console.log('Image info from Roboflow:', {
+      console.log('Full result:', result);
+      
+      let localPredictions = [];
+      let localImageInfo = null;
+      
+      if (result && result.roboflowData && result.roboflowData.predictions) {
+        console.log('Raw predictions:', result.roboflowData.predictions);
+        console.log('Image info:', {
           width: result.roboflowData.image?.width,
           height: result.roboflowData.image?.height
         });
         
-        // Store the image info for redrawing
-        const imageInfo = result.roboflowData.image;
-        setLastImageInfo(imageInfo);
+        localImageInfo = result.roboflowData.image;
         
-        // Log each prediction in detail
         result.roboflowData.predictions.forEach((pred, index) => {
           console.log(`Prediction ${index}:`, {
             class: pred.class,
@@ -263,19 +333,26 @@ const LiveDetectionPage = () => {
             y: pred.y,
             width: pred.width,
             height: pred.height,
-            coordinates_type: 'Roboflow typically uses center coordinates'
+            coordinates_type: 'Center coordinates'
           });
         });
         
-        setPredictions(result.roboflowData.predictions);
-        // Add a small delay to ensure canvas is ready
-        setTimeout(() => {
-          drawBoundingBoxes(result.roboflowData.predictions, imageInfo);
-        }, 100);
+        // Update tracker with new predictions
+        localPredictions = trackerRef.current.update(result.roboflowData.predictions, localImageInfo);
       } else {
         console.log('No predictions found in result');
-        setPredictions([]);
-        setLastImageInfo(null);
+        
+        // Update tracker with no new predictions
+        localPredictions = trackerRef.current.update([], localImageInfo);
+      }
+      
+      // Update state with new predictions
+      setPredictions(localPredictions);
+      setLastImageInfo(localImageInfo);
+      
+      // Immediately draw bounding boxes
+      if (canvasRef.current && webcamRef.current && webcamRef.current.video) {
+        drawBoundingBoxes(localPredictions, localImageInfo);
       }
       
       if (isLiveMode) {
@@ -344,32 +421,49 @@ const LiveDetectionPage = () => {
     }
   }, [webcamRef, cameraReady, analyzeEmotion]);
 
-  const startLiveDetection = () => {
-    if (!cameraReady) {
-      setError('Camera not ready. Please ensure camera access is granted.');
-      return;
-    }
-    
-    setIsLiveMode(true);
-    setEmotionLog([]);
-    setError('');
-    
-    intervalRef.current = setInterval(() => {
-      if (webcamRef.current && cameraReady) {
-        try {
-          const imageSrc = webcamRef.current.getScreenshot();
-          if (imageSrc) {
-            analyzeEmotion(imageSrc);
-          }
-        } catch (err) {
-          console.error('Error during live detection:', err);
-          setError('Live detection error: ' + err.message);
-          stopLiveDetection();
-        }
+  const captureAndAnalyze = useCallback(async () => {
+    if (!webcamRef.current) return;
+    const imageSrc = webcamRef.current.getScreenshot();
+    if (!imageSrc) return;
+    try {
+      const response = await fetch('http://localhost:5002/detect_emotion', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({image: imageSrc.split(',')[1]})
+      });
+      if (!response.ok) throw new Error('Failed to detect emotion');
+      const data = await response.json();
+      const mainEmotion = data.classes_detectees[0] || 'neutral';
+      const maxConfidence = data.predictions.length > 0 ? Math.max(...data.predictions.map(p => p.confidence)) : 0;
+      setEmotion({
+        emotion: mainEmotion,
+        confidence: maxConfidence,
+        predictions: data.predictions,
+        timestamp: data.timestamp
+      });
+      setPredictions(data.predictions);
+      setLastImageInfo(data.image);
+      if (canvasRef.current && webcamRef.current.video) {
+        drawBoundingBoxes(data.predictions, data.image);
       }
-    }, 3000);
-  };
+      if (isLiveMode) {
+        setEmotionLog(prev => [...prev, {emotion: mainEmotion, confidence: maxConfidence, timestamp: data.timestamp}].slice(-20));
+      }
+    } catch (err) {
+      setError(err.message);
+    }
+  }, [isLiveMode]);
 
+  const startLiveDetection = () => {
+    setIsLiveMode(true);
+    setError('');
+    intervalRef.current = setInterval(async () => {
+  console.log('Interval firing, starting new analysis');
+  if (!webcamRef.current) return;
+  const imageSrc = webcamRef.current.getScreenshot();
+  if (imageSrc) await analyzeEmotion(imageSrc);
+}, 500);
+  };
   const stopLiveDetection = () => {
     setIsLiveMode(false);
     if (intervalRef.current) {
@@ -386,6 +480,9 @@ const LiveDetectionPage = () => {
     setShowAdvice(false);
     setPredictions([]);
     setLastImageInfo(null);
+    
+    // Reset the tracker
+    trackerRef.current.reset();
     
     // Clear canvas
     if (canvasRef.current) {
@@ -404,11 +501,9 @@ const LiveDetectionPage = () => {
   // Handle canvas resizing and redrawing
   useEffect(() => {
     const handleResize = () => {
-      if (predictions.length > 0 && webcamRef.current && canvasRef.current && lastImageInfo) {
-        // Redraw bounding boxes when window resizes
-        setTimeout(() => {
-          drawBoundingBoxes(predictions, lastImageInfo);
-        }, 100);
+      // Immediately redraw without setTimeout to prevent flickering
+      if (canvasRef.current && webcamRef.current && webcamRef.current.video) {
+        drawBoundingBoxes(predictions, lastImageInfo);
       }
     };
 
@@ -416,10 +511,9 @@ const LiveDetectionPage = () => {
     let resizeObserver;
     if (webcamRef.current?.video) {
       resizeObserver = new ResizeObserver(() => {
-        if (predictions.length > 0 && lastImageInfo) {
-          setTimeout(() => {
-            drawBoundingBoxes(predictions, lastImageInfo);
-          }, 100);
+        // Immediately redraw without setTimeout to prevent flickering
+        if (canvasRef.current && webcamRef.current.video) {
+          drawBoundingBoxes(predictions, lastImageInfo);
         }
       });
       resizeObserver.observe(webcamRef.current.video);
@@ -432,18 +526,14 @@ const LiveDetectionPage = () => {
       if (resizeObserver) {
         resizeObserver.disconnect();
       }
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
     };
   }, [predictions, drawBoundingBoxes, lastImageInfo]);
 
   // Redraw bounding boxes when predictions change
   useEffect(() => {
-    if (predictions.length > 0 && lastImageInfo) {
-      setTimeout(() => {
-        drawBoundingBoxes(predictions, lastImageInfo);
-      }, 100);
+    // Immediately redraw without setTimeout to prevent flickering
+    if (canvasRef.current && webcamRef.current && webcamRef.current.video) {
+      drawBoundingBoxes(predictions, lastImageInfo);
     }
   }, [predictions, drawBoundingBoxes, lastImageInfo]);
 
@@ -501,7 +591,7 @@ const LiveDetectionPage = () => {
         zIndex: 0
       }}>💕</Box>
       
-      <style jsx="true">
+      <style>
         {`
           @keyframes float {
             0%, 100% { transform: translateY(0px) rotate(0deg); }
@@ -642,12 +732,12 @@ const LiveDetectionPage = () => {
                     }
                   }}>
                     <Webcam
-                      audio={false}
                       ref={webcamRef}
                       screenshotFormat="image/jpeg"
                       videoConstraints={videoConstraints}
                       onUserMedia={handleUserMedia}
                       onUserMediaError={handleUserMediaError}
+                      mirrored={true}
                       style={{
                         width: '100%',
                         height: 'auto',

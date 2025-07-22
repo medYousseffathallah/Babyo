@@ -92,7 +92,7 @@ const UploadSessionPage = () => {
           }
           return f;
         }));
-      }, 500);
+      }, 100);
 
       // Send to backend for processing
       const endpoint = isVideo ? '/api/process-video' : '/api/process-image';
@@ -107,7 +107,6 @@ const UploadSessionPage = () => {
           ));
         }
       });
-
       clearInterval(progressInterval);
 
       // Update with results
@@ -127,7 +126,6 @@ const UploadSessionPage = () => {
         fileType: isVideo ? 'video' : 'image',
         ...response.data
       }]);
-
     } catch (err) {
       console.error('Error processing file:', err);
       setUploadedFiles(prev => prev.map(f => 
@@ -148,6 +146,7 @@ const UploadSessionPage = () => {
     for (const file of pendingFiles) {
       await processFile(file);
     }
+
   };
 
   const removeFile = (fileId) => {
@@ -301,6 +300,7 @@ const UploadSessionPage = () => {
                             )}
                           </Box>
                         }
+                      secondaryTypographyProps={{ component: 'div' }}
                       />
                       <Box sx={{ display: 'flex', gap: 1 }}>
                         {file.status === 'uploaded' && (
@@ -393,7 +393,9 @@ const UploadSessionPage = () => {
                                 size="small"
                                 color="primary"
                                 variant="outlined"
+
                               />
+
                             ) : (
                               <Typography variant="body2" color="text.secondary">
                                 No emotion detected

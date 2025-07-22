@@ -93,7 +93,7 @@ const ReportsPage = () => {
   };
 
   const generateMockSessions = () => {
-    const emotions = ['happy', 'sad', 'angry', 'normal'];
+    const emotions = ['happy', 'cry', 'sleepy', 'normal'];
     const sessions = [];
     
     for (let i = 0; i < 10; i++) {
@@ -202,8 +202,8 @@ Generated on: ${new Date().toLocaleString()}
   const getEmotionColor = (emotion) => {
     const colors = {
       happy: 'success',
-      sad: 'info',
-      angry: 'error',
+      cry: 'info',
+      sleepy: 'error',
       normal: 'warning'
     };
     return colors[emotion] || 'default';
@@ -266,8 +266,8 @@ Generated on: ${new Date().toLocaleString()}
                   >
                     <MenuItem value="all">All Emotions</MenuItem>
                     <MenuItem value="happy">Happy</MenuItem>
-                    <MenuItem value="sad">Sad</MenuItem>
-                    <MenuItem value="angry">Angry</MenuItem>
+                    <MenuItem value="cry">Cry</MenuItem>
+                    <MenuItem value="sleepy">Sleepy</MenuItem>
                     <MenuItem value="normal">Normal</MenuItem>
                   </Select>
                 </FormControl>
@@ -512,8 +512,8 @@ Generated on: ${new Date().toLocaleString()}
                     'Download PDF reports for healthcare providers',
                     'Track emotion patterns over time',
                     'Export data for further analysis'
-                  ].map((feature) => (
-                    <li key={feature}>{feature}</li>
+                  ].map((feature, index) => (
+                    <li key={`detailed-feature-${index}`}>{feature}</li>
                   ))}
                 </ul>
               </Typography>
