@@ -105,8 +105,8 @@ def get_ip_address():
 # Remove entire Firebase initialization block
 # ---------------------- Flask + YOLO ----------------------
 # Supabase configuration already present
-SUPABASE_URL = ('https://ktawufettcizhwcwsktz.supabase.co')
-SUPABASE_KEY = ('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt0YXd1ZmV0dGNpemh3Y3dza3R6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1Mjc2MjU4MiwiZXhwIjoyMDY4MzM4NTgyfQ.Yf9H0s4149rzp01EQ3JL-4zVL-UiAsvr_fcRU0mPiIc')
+SUPABASE_URL = ('')
+SUPABASE_KEY = ('')
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ---------------------- Lancement ----------------------
